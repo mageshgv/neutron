@@ -22,6 +22,7 @@ VPN = "VPN"
 METERING = "METERING"
 L3_ROUTER_NAT = "L3_ROUTER_NAT"
 GROUP_POLICY = "GROUP_POLICY"
+SERVICECHAIN = "SERVICECHAIN"
 
 
 #maps extension alias to service type
@@ -33,11 +34,12 @@ EXT_TO_SERVICE_MAPPING = {
     'metering': METERING,
     'router': L3_ROUTER_NAT,
     'gp': GROUP_POLICY,
+    'servicechain': SERVICECHAIN,
 }
 
 # TODO(salvatore-orlando): Move these (or derive them) from conf file
 ALLOWED_SERVICES = [CORE, DUMMY, LOADBALANCER, FIREWALL, VPN, METERING,
-                    L3_ROUTER_NAT, GROUP_POLICY]
+                    L3_ROUTER_NAT, GROUP_POLICY, SERVICECHAIN]
 
 COMMON_PREFIXES = {
     CORE: "",
@@ -48,6 +50,7 @@ COMMON_PREFIXES = {
     METERING: "/metering",
     L3_ROUTER_NAT: "",
     GROUP_POLICY: "/grouppolicy",
+    SERVICECHAIN: "/servicechain",
 }
 
 # Service operation status constants
