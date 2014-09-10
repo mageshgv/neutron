@@ -29,6 +29,8 @@ from neutron.db import external_net_db  # noqa
 from neutron.db import extradhcpopt_db  # noqa
 from neutron.db import extraroute_db  # noqa
 from neutron.db.firewall import firewall_db  # noqa
+from neutron.db.grouppolicy import group_policy_db  # noqa
+from neutron.db.grouppolicy import group_policy_mapping_db  # noqa
 from neutron.db import l3_agentschedulers_db  # noqa
 from neutron.db import l3_attrs_db  # noqa
 from neutron.db import l3_db  # noqa
@@ -80,6 +82,8 @@ from neutron.plugins.vmware.dbexts import models as vmware_models  # noqa
 from neutron.plugins.vmware.dbexts import networkgw_db  # noqa
 from neutron.plugins.vmware.dbexts import qos_db  # noqa
 from neutron.plugins.vmware.dbexts import vcns_models  # noqa
+from neutron.services.grouppolicy.drivers import implicit_policy  # noqa
+from neutron.services.grouppolicy.drivers import resource_mapping  # noqa
 from neutron.services.loadbalancer import agent_scheduler  # noqa
 from neutron.services.loadbalancer.drivers.embrane import (  # noqa
     models as embrane_models)
