@@ -194,11 +194,10 @@ class ResourceMappingDriver(api.PolicyDriver):
                                       set(orig_consumed_contracts))
         # if EPG associated contracts are updated, we need to update
         # the policy rules, then assoicate SGs to ports
-        if new_provided_contracts:
+        if new_provided_contracts or new_consumed_contracts:
             subnets = context.current['subnets']
             self._assoc_sg_to_epg(context, subnets, new_provided_contracts,
                                   new_consumed_contracts)
-        if new_provided_contracts or new_consumed_contracts:
             self._update_sgs_on_epg(context, epg_id,
                                     new_provided_contracts,
                                     new_consumed_contracts, "ASSOCIATE")
@@ -867,13 +866,14 @@ class ResourceMappingDriver(api.PolicyDriver):
             cidr_list.append(cidr)
 
         out_in = [gconst.GP_DIRECTION_OUT, gconst.GP_DIRECTION_IN]
-        for pos, contracts in [provided_contracts, consumed_contracts]:
+        for pos, contracts in enumerate([provided_contracts,
+                                         consumed_contracts]):
             for contract_id in contracts:
                 contract = context._plugin.get_contract(
                     context._plugin_context, contract_id)
                 contract_sg_mappings = self._get_contract_sg_mapping(
                     context._plugin_context.session, contract_id)
-                prov_cons = [contract_sg_mappings['provided_sg_id'],
+                cons_prov = [contract_sg_mappings['provided_sg_id'],
                              contract_sg_mappings['consumed_sg_id']]
 
                 policy_rules = contract['policy_rules']
@@ -887,19 +887,20 @@ class ResourceMappingDriver(api.PolicyDriver):
                     port_range = classifier['port_range']
 
                     # When I provide a contract (provided_sg_id),
-                    # I have to accept OUT and BI rules, and also tell
-                    # consumers (consumed_sg_id) 'how to reach me'.
+                    # for OUT and BI rules I have to tell
+                    # consumers (consumed_sg_id) to accept my traffic.
 
                     # When I consume a contract (consumed_sg_id),
-                    # I have to accept IN and BI rules, and also tell providers
-                    # (provided_sg_id) 'how to reach me'
+                    # for IN and BI rules I have to tell
+                    # providers (provided_sg_id) to accept my traffic.
+
                     if classifier['direction'] in [gconst.GP_DIRECTION_BI,
                                                    out_in[pos]]:
-                        self._set_sg_ingress_rule(context, prov_cons[pos],
-                                                  protocol, port_range,
-                                                  '0.0.0.0/0')
+                        self._set_sg_egress_rule(context, cons_prov[pos - 1],
+                                                 protocol, port_range,
+                                                 '0.0.0.0/0')
                         for cidr in cidr_list:
-                            self._set_sg_egress_rule(context,
-                                                     prov_cons[pos - 1],
-                                                     protocol, port_range,
-                                                     cidr)
+                            self._set_sg_ingress_rule(context,
+                                                      cons_prov[pos],
+                                                      protocol, port_range,
+                                                      cidr)
