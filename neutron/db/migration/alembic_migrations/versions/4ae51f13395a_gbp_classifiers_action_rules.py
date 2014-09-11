@@ -66,6 +66,7 @@ def upgrade(active_plugins=None, options=None):
         sa.Column('tenant_id', sa.String(length=255), nullable=True),
         sa.Column('name', sa.String(length=50), nullable=True),
         sa.Column('description', sa.String(length=255), nullable=True),
+        sa.Column('enabled', sa.Boolean),
         sa.Column('policy_classifier_id', sa.String(length=36), nullable=True),
         sa.ForeignKeyConstraint(['policy_classifier_id'],
                                 ['gp_policy_classifiers.id'],
@@ -83,7 +84,7 @@ def upgrade(active_plugins=None, options=None):
                                          gp_constants.GP_REDIRECT,
                                          name='action_type'),
                   nullable=True),
-        sa.Column('action_value', sa.String(36), nullable=False),
+        sa.Column('action_value', sa.String(36), nullable=True),
         sa.PrimaryKeyConstraint('id'))
 
     op.create_table(
