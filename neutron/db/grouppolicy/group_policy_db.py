@@ -286,6 +286,11 @@ class GroupPolicyDbPlugin(gpolicy.GroupPolicyPluginBase,
                                              policy_rule_id)
         return policy_rule
 
+    def _get_policy_rule_contracts(self, context, policy_rule_id):
+        return [x['contract_id'] for x in
+                context.session.query(ContractPolicyRuleAssociation).filter_by(
+                    policy_rule_id=policy_rule_id)]
+
     def _get_contract(self, context, contract_id):
         try:
             contract = self._get_by_id(context, Contract, contract_id)
