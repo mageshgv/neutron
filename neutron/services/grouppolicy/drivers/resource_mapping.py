@@ -93,6 +93,7 @@ class ResourceMappingDriver(api.PolicyDriver):
     def initialize(self):
         self._cached_agent_notifier = None
         self._nova_notifier = nova.Notifier()
+        self.default_sg = None
 
     @log.log
     def create_endpoint_precommit(self, context):
@@ -207,9 +208,6 @@ class ResourceMappingDriver(api.PolicyDriver):
                                           set(curr_provided_contracts))
         removed_consumed_contracts = list(set(orig_consumed_contracts) -
                                           set(curr_consumed_contracts))
-        # TODO(s3wong): need to remove existing SGs consumed by other EPG
-        # need to add additional mappings (a contract back pointer to
-        # EPGs that consume such contract)
         if removed_provided_contracts or removed_consumed_contracts:
             self._update_sgs_on_epg(context, epg_id,
                                     removed_provided_contracts,
@@ -357,12 +355,18 @@ class ResourceMappingDriver(api.PolicyDriver):
     @log.log
     def delete_policy_rule_postcommit(self, context):
         for contract_id in context.current['contracts_temp']:
-            contract = context._plugin.get_contract(
+            contract = context._plugin._get_contract(
                 context._plugin_context, contract_id)
             contract_sg_mappings = self._get_contract_sg_mapping(
                 context._plugin_context.session, contract['id'])
+            contract = context._plugin._get_contract(context._plugin_context,
+                                                     contract['id'])
+            epg_mapping = self._get_contract_epg_mapping(context, contract)
+            cidr_mapping = self._get_epg_cidrs_mapping(context, epg_mapping)
             self._add_or_remove_contract_rule(context, context.current,
-                                              contract_sg_mappings, unset=True)
+                                              contract_sg_mappings,
+                                              cidr_mapping,
+                                              unset=True)
 
     @log.log
     def create_contract_precommit(self, context):
@@ -397,11 +401,28 @@ class ResourceMappingDriver(api.PolicyDriver):
 
     @log.log
     def delete_contract_precommit(self, context):
-        pass
+        mapping = self._get_contract_sg_mapping(
+            context._plugin_context.session, context.current['id'])
+        context.current['sg_list_temp'] = [mapping['provided_sg_id'],
+                                           mapping['consumed_sg_id']]
+        contract = context._plugin._get_contract(
+                 context._plugin_context, context.current['id'])
+        context.current['epg_mapping_temp'] = self._get_contract_epg_mapping(
+             context, contract)
 
     @log.log
     def delete_contract_postcommit(self, context):
-        pass
+        # Disassociate SGs
+        sg_list = context.current['sg_list_temp']
+
+        epg_mapping = context.current['epg_mapping_temp']
+        for epgs in epg_mapping.values():
+            for epg in epgs:
+                endpoint_list = epg['endpoints']
+                for ep_id in endpoint_list:
+                    self._disassoc_sgs_from_ep(context, ep_id, sg_list)
+        # Delete SGs
+        [self._delete_sg(context, x) for x in sg_list]
 
     def _use_implicit_port(self, context):
         epg_id = context.current['endpoint_group_id']
@@ -409,6 +430,8 @@ class ResourceMappingDriver(api.PolicyDriver):
                                                  epg_id)
         l2p_id = epg['l2_policy_id']
         l2p = context._plugin.get_l2_policy(context._plugin_context, l2p_id)
+        sg_id = self._ensure_default_security_group(
+            context, context.current['tenant_id'])
         attrs = {'tenant_id': context.current['tenant_id'],
                  'name': 'ep_' + context.current['name'],
                  'network_id': l2p['network_id'],
@@ -416,6 +439,7 @@ class ResourceMappingDriver(api.PolicyDriver):
                  'fixed_ips': attributes.ATTR_NOT_SPECIFIED,
                  'device_id': '',
                  'device_owner': '',
+                 'security_groups': [sg_id],
                  'admin_state_up': True}
         port = self._create_port(context, attrs)
         port_id = port['id']
@@ -605,9 +629,13 @@ class ResourceMappingDriver(api.PolicyDriver):
                               'security_group', sg_id)
 
     def _create_sg_rule(self, context, attrs):
-        return self._create_resource(self._core_plugin,
-                                     context._plugin_context,
-                                     'security_group_rule', attrs)
+        try:
+            return self._create_resource(self._core_plugin,
+                                         context._plugin_context,
+                                         'security_group_rule', attrs)
+        except ext_sg.SecurityGroupRuleExists as ex:
+            LOG.exception(_('Security Group already exists %s'), ex)
+            return
 
     def _update_sg_rule(self, context, sg_rule_id, attrs):
         return self._update_resource(self._core_plugin,
@@ -761,7 +789,7 @@ class ResourceMappingDriver(api.PolicyDriver):
             max_port = min_port
         return int(min_port), int(max_port)
 
-    def _sg_rule(self, context, sg_id, protocol, port_range, remote_group,
+    def _sg_rule(self, context, sg_id, protocol, port_range, cidr,
                  direction, unset=False):
         port_min, port_max = self._get_min_max_ports_from_range(port_range)
         attrs = {'tenant_id': context.current['tenant_id'],
@@ -771,8 +799,8 @@ class ResourceMappingDriver(api.PolicyDriver):
                  'protocol': protocol,
                  'port_range_min': port_min,
                  'port_range_max': port_max,
-                 'remote_ip_prefix': None,
-                 'remote_group_id': remote_group}
+                 'remote_ip_prefix': cidr,
+                 'remote_group_id': None}
         if unset:
             filters = {}
             for key in attrs:
@@ -781,19 +809,20 @@ class ResourceMappingDriver(api.PolicyDriver):
                     filters[key] = [value]
             rule = self._core_plugin.get_security_group_rules(
                 context._plugin_context, filters)
-            self._delete_sg_rule(context, rule[0]['id'])
+            if rule:
+                self._delete_sg_rule(context, rule[0]['id'])
         else:
             return self._create_sg_rule(context, attrs)
 
     def _sg_ingress_rule(self, context, sg_id, protocol, port_range,
-                        remote_group, unset=False):
+                        cidr, unset=False):
         return self._sg_rule(context, sg_id, protocol, port_range,
-                             remote_group, 'ingress', unset)
+                             cidr, 'ingress', unset)
 
     def _sg_egress_rule(self, context, sg_id, protocol, port_range,
-                        remote_group, unset=False):
+                        cidr, unset=False):
         return self._sg_rule(context, sg_id, protocol, port_range,
-                             remote_group, 'egress', unset)
+                             cidr, 'egress', unset)
 
     def _assoc_sgs_to_ep(self, context, ep_id, sg_list):
         ep = context._plugin.get_endpoint(context._plugin_context, ep_id)
@@ -872,86 +901,75 @@ class ResourceMappingDriver(api.PolicyDriver):
     # context should be EPG
     def _assoc_sg_to_epg(self, context, subnets, provided_contracts,
                          consumed_contracts):
-        pass
-    #    if not provided_contracts and not consumed_contracts:
-    #        return
+        if not provided_contracts and not consumed_contracts:
+            return
 
-    #    out_in = [gconst.GP_DIRECTION_OUT, gconst.GP_DIRECTION_IN]
-    #    for pos, contracts in enumerate([provided_contracts,
-    #                                     consumed_contracts]):
-    #        for contract_id in contracts:
-    #            contract = context._plugin.get_contract(
-    #                context._plugin_context, contract_id)
-    #            contract_sg_mappings = self._get_contract_sg_mapping(
-    #                context._plugin_context.session, contract_id)
-    #            cons_prov = [contract_sg_mappings['provided_sg_id'],
-    #                         contract_sg_mappings['consumed_sg_id']]
+        cidr_list = []
+        for subnet_id in subnets:
+            subnet = self._core_plugin.get_subnet(context._plugin_context,
+                                                  subnet_id)
+            cidr = subnet['cidr']
+            cidr_list.append(cidr)
 
-    #            policy_rules = contract['policy_rules']
-    #            for policy_rule_id in policy_rules:
-    #                policy_rule = context._plugin.get_policy_rule(
-    #                    context._plugin_context, policy_rule_id)
-    #                classifier_id = policy_rule['policy_classifier_id']
-    #                classifier = context._plugin.get_policy_classifier(
-    #                    context._plugin_context, classifier_id)
-    #                protocol = classifier['protocol']
-    #                port_range = classifier['port_range']
-
-    #                # When I provide a contract (provided_sg_id),
-    #                # for OUT and BI rules I have to tell
-    #                # consumers (consumed_sg_id) to accept my traffic.
-
-    #                # When I consume a contract (consumed_sg_id),
-    #                # for IN and BI rules I have to tell
-    #                # providers (provided_sg_id) to accept my traffic.
-
-    #                if classifier['direction'] in [gconst.GP_DIRECTION_BI,
-    #                                               out_in[pos]]:
-    #                    self._set_sg_egress_rule(context, cons_prov[pos - 1],
-    #                                             protocol, port_range,
-    #                                             cons_prov[pos])
-    #                    self._set_sg_ingress_rule(context,
-    #                                              cons_prov[pos],
-    #                                              protocol, port_range,
-    #                                              cons_prov[pos - 1])
+        prov_cons = ['providing_cidrs', 'consuming_cidrs']
+        for pos, contracts in enumerate([provided_contracts,
+                                         consumed_contracts]):
+            for contract_id in contracts:
+                contract = context._plugin.get_contract(
+                    context._plugin_context, contract_id)
+                contract_sg_mappings = self._get_contract_sg_mapping(
+                    context._plugin_context.session, contract_id)
+                cidr_mapping = {prov_cons[pos]: cidr_list,
+                                prov_cons[pos-1]: []}
+                policy_rules = contract['policy_rules']
+                for policy_rule_id in policy_rules:
+                    policy_rule = context._plugin.get_policy_rule(
+                        context._plugin_context, policy_rule_id)
+                    self._add_or_remove_contract_rule(context, policy_rule,
+                                                      contract_sg_mappings,
+                                                      cidr_mapping)
 
     def _manage_contract_rules(self, context, contract, policy_rules,
                                unset=False):
         contract_sg_mappings = self._get_contract_sg_mapping(
             context._plugin_context.session, contract['id'])
+        contract = context._plugin._get_contract(
+                context._plugin_context, contract['id'])
+        epg_mapping = self._get_contract_epg_mapping(context, contract)
+        cidr_mapping = self._get_epg_cidrs_mapping(context, epg_mapping)
         for policy_rule_id in policy_rules:
             policy_rule = context._plugin.get_policy_rule(
                 context._plugin_context, policy_rule_id)
+
             self._add_or_remove_contract_rule(context, policy_rule,
                                               contract_sg_mappings,
-                                              unset=unset)
+                                              cidr_mapping, unset=unset)
 
     def _add_or_remove_contract_rule(self, context, policy_rule,
-                                     contract_sg_mappings, unset=False):
+                                     contract_sg_mappings, cidr_mapping,
+                                     unset=False):
         in_out = [gconst.GP_DIRECTION_IN, gconst.GP_DIRECTION_OUT]
-        cons_prov = [contract_sg_mappings['provided_sg_id'],
+        prov_cons = [contract_sg_mappings['provided_sg_id'],
                      contract_sg_mappings['consumed_sg_id']]
+        cidr_prov_cons = [cidr_mapping['providing_cidrs'],
+                          cidr_mapping['consuming_cidrs']]
+
         classifier_id = policy_rule['policy_classifier_id']
         classifier = context._plugin.get_policy_classifier(
             context._plugin_context, classifier_id)
         protocol = classifier['protocol']
         port_range = classifier['port_range']
-        # When I provide a contract (provided_sg_id),
-        # for OUT and BI rules I have to tell
-        # consumers (consumed_sg_id) to accept my traffic.
-        # When I consume a contract (consumed_sg_id),
-        # for IN and BI rules I have to tell
-        # providers (provided_sg_id) to accept my traffic.
-        for pos in range(2):
+
+        for pos, sg in enumerate(prov_cons):
             if classifier['direction'] in [gconst.GP_DIRECTION_BI,
                                            in_out[pos]]:
-                self._sg_egress_rule(context, cons_prov[pos - 1],
-                                     protocol, port_range,
-                                     cons_prov[pos], unset=unset)
-                self._sg_ingress_rule(context,
-                                      cons_prov[pos],
-                                      protocol, port_range,
-                                      cons_prov[pos - 1], unset=unset)
+                for cidr in cidr_prov_cons[pos - 1]:
+                    self._sg_ingress_rule(context, sg, protocol, port_range,
+                                          cidr, unset=unset)
+            if classifier['direction'] in [gconst.GP_DIRECTION_BI,
+                                           in_out[pos - 1]]:
+                self._sg_egress_rule(context, sg, protocol, port_range,
+                                     '0.0.0.0/0', unset=unset)
 
     def _apply_contract_rules(self, context, contract, policy_rules):
         self._manage_contract_rules(context, contract, policy_rules)
@@ -959,3 +977,48 @@ class ResourceMappingDriver(api.PolicyDriver):
     def _remove_contract_rules(self, context, contract, policy_rules):
         self._manage_contract_rules(context, contract, policy_rules,
                                     unset=True)
+
+    def _ensure_default_security_group(self, context, tenant_id):
+        filters = {'name': ['gbp_default'], 'tenant_id': [tenant_id]}
+        default_group = self._core_plugin.get_security_groups(
+            context._plugin_context, filters)
+        if not default_group:
+            attrs = {'name': 'gbp_default', 'tenant_id': tenant_id,
+                     'description': 'default'}
+            ret = self._create_sg(context, attrs)
+            return ret['id']
+        else:
+            return default_group[0]['id']
+
+    def _get_contract_epg_mapping(self, context, contract):
+        return {
+            'providing_epgs': self._get_epgs_by_id(
+                context,
+                [x['endpoint_group_id'] for x in contract.get(
+                    'providing_endpoint_groups', [])]),
+            'consuming_epgs': self._get_epgs_by_id(
+                context,
+                [x['endpoint_group_id'] for x in contract.get(
+                    'consuming_endpoint_groups', [])])}
+
+    def _get_epgs_by_id(self, context, ids):
+        if ids:
+            filters = {'id': ids}
+            return context._plugin.get_endpoint_groups(context._plugin_context,
+                                                       filters)
+        else:
+            return []
+
+    def _get_epg_cidrs(self, context, epgs):
+        cidrs = []
+        for epg in epgs:
+            cidrs.extend([self._core_plugin.get_subnet(
+                context._plugin_context, x)['cidr'] for x in epg['subnets']])
+        return cidrs
+
+    def _get_epg_cidrs_mapping(self, context, epg_mapping):
+        return {
+            'providing_cidrs': self._get_epg_cidrs(
+                context, epg_mapping['providing_epgs']),
+            'consuming_cidrs': self._get_epg_cidrs(
+                context, epg_mapping['consuming_epgs'])}

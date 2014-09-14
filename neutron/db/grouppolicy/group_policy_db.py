@@ -215,10 +215,10 @@ class Contract(model_base.BASEV2, models_v2.HasTenant):
                                     cascade='all, delete-orphan')
     providing_endpoint_groups = orm.relationship(
         EndpointGroupContractProvidingAssociation, backref='provided_contract',
-        lazy="joined", cascade='all')
+        lazy="joined", cascade='all, delete-orphan')
     consuming_endpoint_groups = orm.relationship(
         EndpointGroupContractConsumingAssociation, backref='consumed_contract',
-        lazy="joined", cascade='all')
+        lazy="joined", cascade='all, delete-orphan')
 
 
 class GroupPolicyDbPlugin(gpolicy.GroupPolicyPluginBase,
