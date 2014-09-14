@@ -497,7 +497,7 @@ class GroupPolicyPlugin(group_policy_mapping_db.GroupPolicyMappingDbPlugin):
             self.policy_driver_manager.create_contract_postcommit(
                 policy_context)
         except gp_exc.GroupPolicyDriverError:
-            with excutils.save_and_reraise_exccttion():
+            with excutils.save_and_reraise_exception():
                 LOG.error(_("policy_driver_manager.create_contract_postcommit "
                             "failed, deleting contract '%s'"), result['id'])
                 self.delete_contract(context, result['id'])
@@ -536,6 +536,6 @@ class GroupPolicyPlugin(group_policy_mapping_db.GroupPolicyMappingDbPlugin):
             self.policy_driver_manager.delete_contract_postcommit(
                 policy_context)
         except gp_exc.GroupPolicyDriverError:
-            with excutils.save_and_reraise_exccttion():
+            with excutils.save_and_reraise_exception():
                 LOG.error(_("policy_driver_manager.delete_contract_postcommit "
                             "failed, deleting contract '%s'"), id)
