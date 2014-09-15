@@ -46,8 +46,10 @@ def upgrade(active_plugins=None, options=None):
         sa.Column('endpoint_group_id', sa.String(length=36), nullable=False),
         sa.Column('subnet_id', sa.String(length=36), nullable=False),
         sa.ForeignKeyConstraint(['endpoint_group_id'],
-                                ['gp_endpoint_groups.id']),
-        sa.ForeignKeyConstraint(['subnet_id'], ['subnets.id']),
+                                ['gp_endpoint_groups.id'],
+                                ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['subnet_id'], ['subnets.id'],
+                                ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('endpoint_group_id', 'subnet_id')
     )
 
@@ -55,8 +57,10 @@ def upgrade(active_plugins=None, options=None):
         'gp_l3_policy_router_associations',
         sa.Column('l3_policy_id', sa.String(length=36), nullable=False),
         sa.Column('router_id', sa.String(length=36), nullable=False),
-        sa.ForeignKeyConstraint(['l3_policy_id'], ['gp_l3_policies.id']),
-        sa.ForeignKeyConstraint(['router_id'], ['routers.id']),
+        sa.ForeignKeyConstraint(['l3_policy_id'], ['gp_l3_policies.id'],
+                                ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['router_id'], ['routers.id'],
+                                ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('l3_policy_id', 'router_id')
     )
 
@@ -86,10 +90,23 @@ def upgrade(active_plugins=None, options=None):
     )
     op.create_unique_constraint(None, 'gp_endpoints', ['port_id'])
 
+    op.create_foreign_key(
+        'gp_endpoints_port_fk',
+        source='gp_endpoints', referent='ports',
+        local_cols=['port_id'], remote_cols=['id'],
+        ondelete='CASCADE')
+
     op.add_column(
         'gp_l2_policies',
         sa.Column('network_id', sa.String(length=36), nullable=True)
     )
+
+    op.create_foreign_key(
+        'gp_l2_policies_network_fk',
+        source='gp_l2_policies', referent='networks',
+        local_cols=['network_id'], remote_cols=['id'],
+        ondelete='SET NULL')
+
     op.create_unique_constraint(None, 'gp_l2_policies', ['network_id'])
 
 

@@ -131,13 +131,13 @@ class ResourceMappingDriver(api.PolicyDriver):
         self._disassoc_epg_sg_from_ep(context,
                                       context.current['id'],
                                       context.current['endpoint_group_id'])
-        pass
-
-    @log.log
-    def delete_endpoint_postcommit(self, context):
         # TODO(s3wong): disassociate contract-default-sg from port
         port_id = context.current['port_id']
         self._cleanup_port(context, port_id)
+
+    @log.log
+    def delete_endpoint_postcommit(self, context):
+        pass
 
     @log.log
     def create_endpoint_group_precommit(self, context):
@@ -215,10 +215,6 @@ class ResourceMappingDriver(api.PolicyDriver):
 
     @log.log
     def delete_endpoint_group_precommit(self, context):
-        pass
-
-    @log.log
-    def delete_endpoint_group_postcommit(self, context):
         l2p_id = context.current['l2_policy_id']
         l2p = context._plugin.get_l2_policy(context._plugin_context, l2p_id)
         l3p_id = l2p['l3_policy_id']
@@ -226,6 +222,9 @@ class ResourceMappingDriver(api.PolicyDriver):
         router_id = l3p['routers'][0]
         for subnet_id in context.current['subnets']:
             self._cleanup_subnet(context, subnet_id, router_id)
+    @log.log
+    def delete_endpoint_group_postcommit(self, context):
+        pass
 
     @log.log
     def create_l2_policy_precommit(self, context):
@@ -246,12 +245,12 @@ class ResourceMappingDriver(api.PolicyDriver):
 
     @log.log
     def delete_l2_policy_precommit(self, context):
-        pass
+        network_id = context.current['network_id']
+        self._cleanup_network(context, network_id)
 
     @log.log
     def delete_l2_policy_postcommit(self, context):
-        network_id = context.current['network_id']
-        self._cleanup_network(context, network_id)
+        pass
 
     @log.log
     def create_l3_policy_precommit(self, context):
@@ -274,12 +273,12 @@ class ResourceMappingDriver(api.PolicyDriver):
 
     @log.log
     def delete_l3_policy_precommit(self, context):
-        pass
+        for router_id in context.current['routers']:
+            self._cleanup_router(context, router_id)
 
     @log.log
     def delete_l3_policy_postcommit(self, context):
-        for router_id in context.current['routers']:
-            self._cleanup_router(context, router_id)
+        pass
 
     @log.log
     def create_policy_classifier_precommit(self, context):

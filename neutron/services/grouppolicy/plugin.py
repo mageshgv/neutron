@@ -10,6 +10,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from neutron.common import exceptions as nexc
 from neutron.common import log
 from neutron.db.grouppolicy import group_policy_mapping_db
 from neutron.openstack.common import excutils
@@ -148,7 +149,9 @@ class GroupPolicyPlugin(group_policy_mapping_db.GroupPolicyMappingDbPlugin):
         with session.begin(subtransactions=True):
             endpoint_group = self.get_endpoint_group(context,
                                                      endpoint_group_id)
-            # TODO(sumit) : Do not delete if EPG has EPs
+            if(session.query(group_policy_mapping_db.EndpointMapping).
+                 filter_by(endpoint_group_id=endpoint_group_id).count()):
+                raise nexc.BadRequest('Endpoint group is in use')
             policy_context = p_context.EndpointGroupContext(self, context,
                                                             endpoint_group)
             self.policy_driver_manager.delete_endpoint_group_precommit(
