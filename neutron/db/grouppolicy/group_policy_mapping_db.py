@@ -28,7 +28,8 @@ class EndpointMapping(gpdb.Endpoint):
     """Mapping of Endpoint to Neutron Port."""
     __table_args__ = {'extend_existing': True}
     __mapper_args__ = {'polymorphic_identity': 'mapping'}
-    port_id = sa.Column(sa.String(36), sa.ForeignKey('ports.id'),
+    port_id = sa.Column(sa.String(36), sa.ForeignKey('ports.id',
+                                                     ondelete='CASCADE'),
                         nullable=True, unique=True)
 
 
@@ -36,9 +37,11 @@ class EndpointGroupSubnetAssociation(model_base.BASEV2):
     """Models the many to many relation between EndpointGroup and Subnets."""
     __tablename__ = 'gp_endpoint_group_subnet_associations'
     endpoint_group_id = sa.Column(sa.String(36),
-                                  sa.ForeignKey('gp_endpoint_groups.id'),
+                                  sa.ForeignKey('gp_endpoint_groups.id',
+                                                ondelete='CASCADE'),
                                   primary_key=True)
-    subnet_id = sa.Column(sa.String(36), sa.ForeignKey('subnets.id'),
+    subnet_id = sa.Column(sa.String(36), sa.ForeignKey('subnets.id',
+                                                       ondelete='CASCADE'),
                           primary_key=True)
 
 
@@ -61,9 +64,11 @@ class L2PolicyMapping(gpdb.L2Policy):
 class L3PolicyRouterAssociation(model_base.BASEV2):
     """Models the many to many relation between L3Policies and Routers."""
     __tablename__ = 'gp_l3_policy_router_associations'
-    l3_policy_id = sa.Column(sa.String(36), sa.ForeignKey('gp_l3_policies.id'),
+    l3_policy_id = sa.Column(sa.String(36), sa.ForeignKey('gp_l3_policies.id',
+                                                          ondelete='CASCADE'),
                              primary_key=True)
-    router_id = sa.Column(sa.String(36), sa.ForeignKey('routers.id'),
+    router_id = sa.Column(sa.String(36), sa.ForeignKey('routers.id',
+                                                       ondelete='CASCADE'),
                           primary_key=True)
 
 
