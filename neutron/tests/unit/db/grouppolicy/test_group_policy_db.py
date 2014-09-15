@@ -461,15 +461,22 @@ class TestGroupResources(GroupPolicyDbTestCase):
         attrs = self._get_test_endpoint_group_attrs(name=name,
                                                     description=description,
                                                     l2_policy_id=l2p_id)
-        epg = self.create_endpoint_group()
+        ct1_id = self.create_contract(name='contract1')['contract']['id']
+        ct2_id = self.create_contract(name='contract2')['contract']['id']
+        epg = self.create_endpoint_group(consumed_contracts={ct1_id: 'scope'},
+                                         provided_contracts={ct2_id: 'scope'})
+        ct3_id = self.create_contract(name='contract3')['contract']['id']
+        ct4_id = self.create_contract(name='contract4')['contract']['id']
         data = {'endpoint_group': {'name': name, 'description': description,
                                    'l2_policy_id': l2p_id,
-                                   'provided_contracts': {},
-                                   'consumed_contracts': {}}}
+                                   'provided_contracts': {ct3_id: 'scope'},
+                                   'consumed_contracts': {ct4_id: 'scope'}}}
         req = self.new_update_request('endpoint_groups', data,
                                       epg['endpoint_group']['id'])
         res = self.deserialize(self.fmt, req.get_response(self.ext_api))
 
+        attrs['provided_contracts'] = [ct3_id]
+        attrs['consumed_contracts'] = [ct4_id]
         for k, v in attrs.iteritems():
             self.assertEqual(res['endpoint_group'][k], v)
 
@@ -907,11 +914,14 @@ class TestGroupResources(GroupPolicyDbTestCase):
         policy_rules = [self.create_policy_rule(
             policy_classifier_id=pc_id)['policy_rule']['id']]
         child_contracts = [self.create_contract()['contract']['id']]
+        ct = self.create_contract(child_contracts=child_contracts,
+                                  policy_rules=policy_rules)
+        child_contracts = [self.create_contract()['contract']['id']]
+        policy_rules = [self.create_policy_rule(
+            policy_classifier_id=pc_id)['policy_rule']['id']]
         attrs = self._get_test_contract_attrs(
             name=name, description=description, policy_rules=policy_rules,
             child_contracts=child_contracts)
-
-        ct = self.create_contract()
         data = {'contract': {'name': name, 'description': description,
                              'policy_rules': policy_rules,
                              'child_contracts': child_contracts}}

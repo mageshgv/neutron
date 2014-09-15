@@ -87,10 +87,10 @@ class EndpointGroup(model_base.BASEV2, models_v2.HasId, models_v2.HasTenant):
                              nullable=True)
     provided_contracts = orm.relationship(
         EndpointGroupContractProvidingAssociation,
-        backref='providing_endpoint_group', cascade='all')
+        backref='providing_endpoint_group', cascade='all, delete-orphan')
     consumed_contracts = orm.relationship(
         EndpointGroupContractConsumingAssociation,
-        backref='consuming_endpoint_group', cascade='all')
+        backref='consuming_endpoint_group', cascade='all, delete-orphan')
 
 
 class L2Policy(model_base.BASEV2, models_v2.HasId, models_v2.HasTenant):
