@@ -25,22 +25,12 @@ Create Date: 2014-07-24 15:33:34.751659
 revision = '23b6c4d703c7'
 down_revision = '53de98f7a066'
 
-# Change to ['*'] if this migration applies to all plugins
-
-migration_for_plugins = [
-    '*'
-]
 
 from alembic import op
 import sqlalchemy as sa
 
-from neutron.db import migration
-
 
 def upgrade(active_plugins=None, options=None):
-    if not migration.should_run(active_plugins, migration_for_plugins):
-        return
-
     op.create_table(
         'gpm_owned_l3_policies',
         sa.Column('l3_policy_id', sa.String(length=36), nullable=False),
@@ -59,8 +49,5 @@ def upgrade(active_plugins=None, options=None):
 
 
 def downgrade(active_plugins=None, options=None):
-    if not migration.should_run(active_plugins, migration_for_plugins):
-        return
-
     op.drop_table('gpm_owned_l2_policies')
     op.drop_table('gpm_owned_l3_policies')

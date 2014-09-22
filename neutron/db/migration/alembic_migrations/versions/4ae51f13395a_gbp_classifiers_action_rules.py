@@ -24,23 +24,15 @@ Create Date: 2014-07-30 14:16:05.660561
 revision = '4ae51f13395a'
 down_revision = '1bf7555fa01a'
 
-migration_for_plugins = [
-    '*'
-]
-
 
 from alembic import op
 import sqlalchemy as sa
 
-from neutron.db import migration
 from neutron.plugins.common import constants
 from neutron.services.grouppolicy.common import constants as gp_constants
 
 
 def upgrade(active_plugins=None, options=None):
-    if not migration.should_run(active_plugins, migration_for_plugins):
-        return
-
     op.create_table(
         'gp_policy_classifiers',
         sa.Column('id', sa.String(36), nullable=False),
@@ -83,7 +75,7 @@ def upgrade(active_plugins=None, options=None):
                                          gp_constants.GP_REDIRECT,
                                          name='action_type'),
                   nullable=True),
-        sa.Column('action_value', sa.String(36), nullable=False),
+        sa.Column('action_value', sa.String(36), nullable=True),
         sa.PrimaryKeyConstraint('id'))
 
     op.create_table(
@@ -98,9 +90,6 @@ def upgrade(active_plugins=None, options=None):
 
 
 def downgrade(active_plugins=None, options=None):
-    if not migration.should_run(active_plugins, migration_for_plugins):
-        return
-
     op.drop_table('gp_policy_rule_action_associations')
     op.drop_table('gp_policy_rules')
     op.drop_table('gp_policy_classifiers')

@@ -24,20 +24,12 @@ Create Date: 2014-07-30 14:48:49.838182
 revision = '3ef186997b02'
 down_revision = '4ae51f13395a'
 
-migration_for_plugins = [
-    '*'
-]
 
 from alembic import op
 import sqlalchemy as sa
 
-from neutron.db import migration
-
 
 def upgrade(active_plugins=None, options=None):
-    if not migration.should_run(active_plugins, migration_for_plugins):
-        return
-
     op.create_table(
         'gp_contracts',
         sa.Column('id', sa.String(36), nullable=False),
@@ -81,9 +73,6 @@ def upgrade(active_plugins=None, options=None):
 
 
 def downgrade(active_plugins=None, options=None):
-    if not migration.should_run(active_plugins, migration_for_plugins):
-        return
-
     op.drop_table('gp_endpoint_group_contract_providing_associations')
     op.drop_table('gp_endpoint_group_contract_consuming_associations')
     op.drop_table('gp_contract_policy_rule_associations')

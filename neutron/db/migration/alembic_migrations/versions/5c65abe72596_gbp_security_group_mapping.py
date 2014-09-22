@@ -23,14 +23,13 @@ Create Date: 2014-08-21 14:30:23.68888
 
 # revision identifiers, used by Alembic.
 revision = '5c65abe72596'
-down_revision = '1680e1f0c4dc'
+down_revision = '3ef186997b02'
 
 from alembic import op
 import sqlalchemy as sa
 
 
 def upgrade(active_plugins=None, options=None):
-
     op.create_table(
         'gpm_contract_sg_mapping',
         sa.Column('contract_id', sa.String(length=36), nullable=False),
@@ -45,5 +44,4 @@ def upgrade(active_plugins=None, options=None):
 
 
 def downgrade(active_plugins=None, options=None):
-
     op.drop_table('gpm_contract_sg_mapping')

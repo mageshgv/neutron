@@ -25,22 +25,12 @@ Create Date: 2014-07-24 16:12:22.610815
 revision = '1bf7555fa01a'
 down_revision = '23b6c4d703c7'
 
-# Change to ['*'] if this migration applies to all plugins
-
-migration_for_plugins = [
-    '*'
-]
 
 from alembic import op
 import sqlalchemy as sa
 
-from neutron.db import migration
-
 
 def upgrade(active_plugins=None, options=None):
-    if not migration.should_run(active_plugins, migration_for_plugins):
-        return
-
     op.create_table(
         'gpm_owned_networks',
         sa.Column('network_id', sa.String(length=36), nullable=False),
@@ -75,9 +65,6 @@ def upgrade(active_plugins=None, options=None):
 
 
 def downgrade(active_plugins=None, options=None):
-    if not migration.should_run(active_plugins, migration_for_plugins):
-        return
-
     op.drop_table('gpm_owned_routers')
     op.drop_table('gpm_owned_subnets')
     op.drop_table('gpm_owned_ports')

@@ -20,22 +20,14 @@ Revision ID: ab64381ee820
 
 # revision identifiers, used by Alembic.
 revision = 'ab64381ee820'
-down_revision = '236b90af57ab'
+down_revision = '1680e1f0c4dc'
 
-migration_for_plugins = [
-    '*'
-]
 
 from alembic import op
 import sqlalchemy as sa
 
-from neutron.db import migration
-
 
 def upgrade(active_plugins=None, options=None):
-    if not migration.should_run(active_plugins, migration_for_plugins):
-        return
-
     op.create_table(
         'gp_l3_policies',
         sa.Column('id', sa.String(36), nullable=False),
@@ -82,9 +74,6 @@ def upgrade(active_plugins=None, options=None):
 
 
 def downgrade(active_plugins=None, options=None):
-    if not migration.should_run(active_plugins, migration_for_plugins):
-        return
-
     op.drop_table('gp_endpoints')
     op.drop_table('gp_endpoint_groups')
     op.drop_table('gp_l2_policies')
